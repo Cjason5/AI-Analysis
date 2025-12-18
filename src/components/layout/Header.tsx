@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import {
   BarChart3,
@@ -33,13 +34,14 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-accent-blue rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-text-primary">
-              Trio Terminal
-            </span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/logo-header.svg"
+              alt="Trio Terminal"
+              width={160}
+              height={32}
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
