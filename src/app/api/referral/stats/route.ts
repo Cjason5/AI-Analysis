@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate total earnings
     const totalEarnings = user.referralEarnings.reduce(
-      (sum, earning) => sum + earning.commissionAmount,
+      (sum: number, earning: { commissionAmount: number }) => sum + earning.commissionAmount,
       0
     );
 
