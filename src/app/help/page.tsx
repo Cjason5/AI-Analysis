@@ -226,7 +226,7 @@ export default function HelpPage() {
         <Card className="p-5">
           <p className="text-sm text-text-secondary mb-4">
             Earn rewards by sharing Trio Terminal with your friends. Every time someone you
-            refer pays for an analysis, you earn 10% commission automatically.
+            refer does an analysis, you earn rewards automatically.
           </p>
           <div className="grid md:grid-cols-3 gap-4 mb-4">
             <div className="bg-bg-secondary rounded-lg p-4 text-center">
@@ -253,7 +253,7 @@ export default function HelpPage() {
               </div>
               <h4 className="text-text-primary font-medium text-sm mb-1">Earn Rewards</h4>
               <p className="text-text-muted text-xs">
-                Earn 10% of every analysis fee paid by your referrals
+                Earn rewards for every analysis fee paid by your referrals
               </p>
             </div>
           </div>
