@@ -1,65 +1,150 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { ExchangeFilter } from '@/components/tokens/ExchangeFilter';
+import { SearchBar } from '@/components/tokens/SearchBar';
+import { SortDropdown, SortOption, SortDirection } from '@/components/tokens/SortDropdown';
+import { TokenGrid } from '@/components/tokens/TokenGrid';
+import { StatsBar } from '@/components/tokens/StatsBar';
+import { Pagination } from '@/components/ui/Pagination';
+import { AnalysisModal } from '@/components/modals/AnalysisModal';
+import { AlertModal } from '@/components/modals/AlertModal';
+import { useTokens } from '@/hooks/useTokens';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { ExchangeId, Token } from '@/types';
+
+export default function HomePage() {
+  const { connected } = useWallet();
+  const [selectedExchange, setSelectedExchange] = useState<ExchangeId | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('marketCap');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [showWalletWarning, setShowWalletWarning] = useState(false);
+
+  // Modal state
+  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+
+  const { tokens, isLoading, total, page, setPage, limit, setLimit, totalPages } = useTokens({
+    exchange: selectedExchange,
+    search: searchQuery,
+    sortBy,
+    direction: sortDirection,
+  });
+
+  const { watchlistIds, toggleWatchlist } = useWatchlist();
+
+  const handleAnalyze = (token: Token) => {
+    setSelectedToken(token);
+    setShowAnalysisModal(true);
+  };
+
+  const handleAlert = (token: Token) => {
+    setSelectedToken(token);
+    setShowAlertModal(true);
+  };
+
+  const handleWatchlist = async (token: Token) => {
+    if (!connected) {
+      setShowWalletWarning(true);
+      setTimeout(() => setShowWalletWarning(false), 3000);
+      return;
+    }
+    await toggleWatchlist(token);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="container mx-auto px-4 py-6">
+      {/* Wallet Warning Toast */}
+      {showWalletWarning && (
+        <div className="fixed top-4 right-4 z-50 bg-yellow-500/90 text-black px-4 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-2">
+          <p className="font-medium">Please connect your wallet to use the watchlist</p>
+        </div>
+      )}
+
+      {/* Hero Section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-text-primary mb-2">
+          Crypto Trading Signals
+        </h1>
+        <p className="text-text-secondary">
+          Get instant analysis and trading recommendations for tokens across top exchanges
+        </p>
+      </div>
+
+      {/* Stats Bar */}
+      <StatsBar />
+
+      {/* Exchange Filter */}
+      <div className="mb-6">
+        <ExchangeFilter
+          selectedExchange={selectedExchange}
+          onExchangeChange={setSelectedExchange}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </div>
+
+      {/* Search and Sort Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex-1">
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <SortDropdown
+          sortBy={sortBy}
+          direction={sortDirection}
+          onSort={(newSortBy, newDirection) => {
+            setSortBy(newSortBy);
+            setSortDirection(newDirection);
+          }}
+        />
+      </div>
+
+      {/* Token Grid */}
+      <TokenGrid
+        tokens={tokens}
+        isLoading={isLoading}
+        onAnalyze={handleAnalyze}
+        onWatchlist={handleWatchlist}
+        onAlert={handleAlert}
+        watchlistIds={watchlistIds}
+      />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={total}
+          itemsPerPage={limit}
+          onItemsPerPageChange={setLimit}
+        />
+      )}
+
+      {/* Analysis Modal */}
+      {selectedToken && (
+        <AnalysisModal
+          isOpen={showAnalysisModal}
+          onClose={() => {
+            setShowAnalysisModal(false);
+            setSelectedToken(null);
+          }}
+          token={selectedToken}
+        />
+      )}
+
+      {/* Alert Modal */}
+      {selectedToken && (
+        <AlertModal
+          isOpen={showAlertModal}
+          onClose={() => {
+            setShowAlertModal(false);
+            setSelectedToken(null);
+          }}
+          token={selectedToken}
+        />
+      )}
     </div>
   );
 }

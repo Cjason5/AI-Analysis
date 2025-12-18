@@ -1,0 +1,110 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  walletAddress String         @unique
+  createdAt     DateTime       @default(now())
+  watchlist     Watchlist[]
+  alerts        PriceAlert[]
+  analyses      SignalHistory[]
+  notifications Notification[]
+
+  // Referral system
+  referredById     String?
+  referredBy       User?            @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]           @relation("Referrals")
+  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
+  commissionsOwed  ReferralEarning[] @relation("DownlineCommissions")
+}
+
+model ReferralEarning {
+  id              String   @id @default(cuid())
+  referrerId      String
+  referrer        User     @relation("ReferrerEarnings", fields: [referrerId], references: [id])
+  downlineId      String
+  downline        User     @relation("DownlineCommissions", fields: [downlineId], references: [id])
+  analysisId      String?
+  txSignature     String
+  commissionAmount Float    // Amount in USDC (e.g., 0.008)
+  totalFee        Float    // Total analysis fee (e.g., 0.08)
+  createdAt       DateTime @default(now())
+}
+
+model Notification {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  type         String   @default("price_alert")
+  title        String
+  message      String
+  tokenSymbol  String?
+  exchange     String?
+  targetPrice  Float?
+  currentPrice Float?
+  condition    String?
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Watchlist {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tokenSymbol String
+  tokenName   String
+  exchange    String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, tokenSymbol, exchange])
+}
+
+model PriceAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tokenSymbol String
+  tokenName   String
+  exchange    String
+  condition   String
+  targetPrice Float
+  isActive    Boolean  @default(true)
+  triggered   Boolean  @default(false)
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SignalHistory {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  tokenSymbol     String
+  tokenName       String
+  exchange        String
+  priceAtAnalysis Float
+  analysis        String   @db.Text
+  txSignature     String?
+  createdAt       DateTime @default(now())
+}
+
+model TokenCache {
+  id          String   @id @default(cuid())
+  exchange    String
+  tokenSymbol String
+  tokenName   String
+  price       Float
+  change24h   Float
+  volume24h   Float
+  marketCap   Float
+  logoUrl     String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([exchange, tokenSymbol])
+}

@@ -33,6 +33,19 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Solana keypair files - NEVER commit private keys
+*.keypair.json
+*-keypair.json
+delegate-keypair.json
+keypair.json
+*.secret
+*.key
+
+# Claude Code
+CLAUDE.md
+claude.md
+.claude/
+
 # vercel
 .vercel
 
