@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient | null {
   // Check if DATABASE_URL is configured
   if (!process.env.DATABASE_URL) {
     console.warn('DATABASE_URL not configured, database features will be disabled');
@@ -16,9 +16,26 @@ function createPrismaClient() {
   try {
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false, // Required for Supabase
+      },
+      max: 10, // Maximum connections in pool
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
     });
+
+    // Add error handler to pool
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle client', err);
+    });
+
     const adapter = new PrismaPg(pool);
-    return new PrismaClient({ adapter });
+    const client = new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    });
+
+    return client;
   } catch (error) {
     console.error('Failed to create Prisma client:', error);
     return null;
