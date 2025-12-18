@@ -416,16 +416,6 @@ export default function HelpPage() {
         </Card>
       </section>
 
-      {/* Disclaimer */}
-      <div className="p-4 bg-bg-secondary rounded-lg border border-border-color">
-        <p className="text-sm text-text-muted">
-          <strong className="text-text-secondary">Disclaimer:</strong> Trio Terminal
-          provides trading signals for informational purposes only.
-          This is not financial advice. Cryptocurrency trading involves substantial
-          risk of loss. Always conduct your own research and consider your risk
-          tolerance before making any trading decisions.
-        </p>
-      </div>
     </div>
   );
 }
