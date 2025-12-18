@@ -46,8 +46,14 @@ export function AlertModal({ isOpen, onClose, token }: AlertModalProps) {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to create alert');
+        // Show specific error message from server
+        if (response.status === 503) {
+          throw new Error('Database not available. Please try again later.');
+        }
+        throw new Error(data.error || 'Failed to create alert');
       }
 
       setSuccess(true);
