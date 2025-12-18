@@ -523,12 +523,22 @@ export async function executeDelegatedTransfer(
   return signature;
 }
 
-// Verify a payment transaction
+// Set to track used transaction signatures (prevents replay attacks)
+// In production, this should be stored in a database
+const usedSignatures = new Set<string>();
+
+// Verify a payment transaction with full validation
 export async function verifyPaymentTransaction(
   connection: Connection,
-  signature: string
+  signature: string,
+  expectedPayer?: string
 ): Promise<{ verified: boolean; error?: string }> {
   try {
+    // Check for replay attack
+    if (usedSignatures.has(signature)) {
+      return { verified: false, error: 'Transaction signature already used' };
+    }
+
     // Get transaction details
     const tx = await connection.getTransaction(signature, {
       commitment: 'confirmed',
@@ -541,6 +551,79 @@ export async function verifyPaymentTransaction(
 
     if (tx.meta?.err) {
       return { verified: false, error: 'Transaction failed' };
+    }
+
+    // Verify transaction is recent (within 5 minutes)
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (tx.blockTime && currentTime - tx.blockTime > 300) {
+      return { verified: false, error: 'Transaction too old (must be within 5 minutes)' };
+    }
+
+    // Get expected payment wallets and amounts
+    const { wallet1, wallet2 } = getPaymentWallets();
+    const { total } = calculateSplitAmounts();
+    const expectedTotal = total; // in smallest unit (6 decimals)
+
+    // Verify token transfers using pre/post token balances
+    const preBalances = tx.meta?.preTokenBalances || [];
+    const postBalances = tx.meta?.postTokenBalances || [];
+
+    // Find USDC transfers to our payment wallets
+    let totalTransferred = 0;
+    let foundWallet1Transfer = false;
+    let foundWallet2Transfer = false;
+
+    // Get wallet token accounts
+    const wallet1TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet1));
+    const wallet2TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet2));
+
+    for (const postBalance of postBalances) {
+      // Check if this is USDC (verify mint address)
+      if (postBalance.mint !== USDC_MINT.toBase58()) {
+        continue;
+      }
+
+      const preBalance = preBalances.find(
+        (pre) => pre.accountIndex === postBalance.accountIndex
+      );
+
+      const preAmount = preBalance?.uiTokenAmount?.amount ? parseInt(preBalance.uiTokenAmount.amount) : 0;
+      const postAmount = postBalance.uiTokenAmount?.amount ? parseInt(postBalance.uiTokenAmount.amount) : 0;
+      const transferred = postAmount - preAmount;
+
+      // Check if transfer was to one of our payment wallets
+      const accountKeys = tx.transaction.message.getAccountKeys();
+      const accountKey = accountKeys.get(postBalance.accountIndex);
+
+      if (accountKey) {
+        if (accountKey.equals(wallet1TokenAccount)) {
+          foundWallet1Transfer = true;
+          totalTransferred += transferred;
+        } else if (accountKey.equals(wallet2TokenAccount)) {
+          foundWallet2Transfer = true;
+          totalTransferred += transferred;
+        }
+      }
+    }
+
+    // Verify at least one payment wallet received funds
+    if (!foundWallet1Transfer && !foundWallet2Transfer) {
+      return { verified: false, error: 'No payment to authorized wallets found' };
+    }
+
+    // Verify total amount (allow small rounding differences, within 1%)
+    const minExpected = Math.floor(expectedTotal * 0.99);
+    if (totalTransferred < minExpected) {
+      return { verified: false, error: `Insufficient payment amount. Expected ${expectedTotal}, got ${totalTransferred}` };
+    }
+
+    // Mark signature as used to prevent replay
+    usedSignatures.add(signature);
+
+    // Clean up old signatures (keep last 10000)
+    if (usedSignatures.size > 10000) {
+      const toDelete = Array.from(usedSignatures).slice(0, 1000);
+      toDelete.forEach(sig => usedSignatures.delete(sig));
     }
 
     return { verified: true };

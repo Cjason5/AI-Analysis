@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, isDatabaseAvailable } from '@/lib/prisma';
+import { sanitizeWalletAddress, validateAlertCondition, validatePrice } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const walletAddress = searchParams.get('walletAddress');
+    const walletAddress = sanitizeWalletAddress(searchParams.get('walletAddress'));
 
     if (!walletAddress) {
       return NextResponse.json({ alerts: [] });
@@ -31,11 +32,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { walletAddress, tokenSymbol, tokenName, exchange, condition, targetPrice, email } = body;
+    const { tokenSymbol, tokenName, exchange, email } = body;
 
-    if (!walletAddress || !tokenSymbol || !exchange || !condition || targetPrice === undefined) {
+    // Validate and sanitize inputs
+    const walletAddress = sanitizeWalletAddress(body.walletAddress);
+    const condition = validateAlertCondition(body.condition);
+    const targetPrice = validatePrice(body.targetPrice);
+
+    if (!walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid wallet address' },
+        { status: 400 }
+      );
+    }
+
+    if (!tokenSymbol || !exchange || !condition || targetPrice === null) {
+      return NextResponse.json(
+        { error: 'Missing or invalid required fields' },
         { status: 400 }
       );
     }
@@ -84,11 +97,14 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { alertId, walletAddress, isActive } = body;
+    const { alertId, isActive } = body;
+
+    // Validate wallet address
+    const walletAddress = sanitizeWalletAddress(body.walletAddress);
 
     if (!alertId || !walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing or invalid required fields' },
         { status: 400 }
       );
     }
@@ -133,11 +149,13 @@ export async function DELETE(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const alertId = searchParams.get('alertId');
-    const walletAddress = searchParams.get('walletAddress');
+
+    // Validate wallet address
+    const walletAddress = sanitizeWalletAddress(searchParams.get('walletAddress'));
 
     if (!alertId || !walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing or invalid required fields' },
         { status: 400 }
       );
     }

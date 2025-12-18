@@ -65,7 +65,22 @@ export async function analyzeSentiment(
       throw new Error('No content in OpenAI response');
     }
 
-    const result = JSON.parse(content) as SentimentResult;
+    // Safely parse JSON with error handling
+    let result: SentimentResult;
+    try {
+      result = JSON.parse(content) as SentimentResult;
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response as JSON:', parseError);
+      console.error('Raw content:', content.substring(0, 500));
+      return getMockSentiment();
+    }
+
+    // Validate required fields exist
+    if (!result.shortTermSentiment || !result.longTermSentiment) {
+      console.error('Invalid sentiment structure in OpenAI response');
+      return getMockSentiment();
+    }
+
     return result;
   } catch (error) {
     console.error('Error analyzing sentiment:', error);

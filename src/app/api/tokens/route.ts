@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchExchangeTokens, fetchGlobalMetrics } from '@/lib/coinmarketcap';
 import { ExchangeId } from '@/types';
+import { validatePagination, validateSortParams, sanitizeSearchInput } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const exchange = searchParams.get('exchange') as ExchangeId | 'all' | null;
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
-    const search = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'marketCap';
-    const direction = searchParams.get('direction') || 'desc';
+
+    // Validate and sanitize input parameters
+    const { limit, offset } = validatePagination(
+      searchParams.get('limit'),
+      searchParams.get('offset')
+    );
+    const search = sanitizeSearchInput(searchParams.get('search'));
+    const { sortBy, direction } = validateSortParams(
+      searchParams.get('sortBy'),
+      searchParams.get('direction')
+    );
 
     // Fetch tokens from CoinMarketCap filtered by exchange (up to 5000 tokens)
     const { tokens, total } = await fetchExchangeTokens(exchange || 'all', 5000);
