@@ -8,39 +8,36 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  walletAddress String         @unique
-  createdAt     DateTime       @default(now())
-  watchlist     Watchlist[]
-  alerts        PriceAlert[]
-  analyses      SignalHistory[]
-  notifications Notification[]
-
-  // Referral system
+  id               String            @id @default(cuid())
+  walletAddress    String            @unique
+  createdAt        DateTime          @default(now())
   referredById     String?
-  referredBy       User?            @relation("Referrals", fields: [referredById], references: [id])
-  referrals        User[]           @relation("Referrals")
-  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
+  notifications    Notification[]
+  alerts           PriceAlert[]
   commissionsOwed  ReferralEarning[] @relation("DownlineCommissions")
+  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
+  analyses         SignalHistory[]
+  referredBy       User?             @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]            @relation("Referrals")
+  watchlist        Watchlist[]
 }
 
 model ReferralEarning {
-  id              String   @id @default(cuid())
-  referrerId      String
-  referrer        User     @relation("ReferrerEarnings", fields: [referrerId], references: [id])
-  downlineId      String
-  downline        User     @relation("DownlineCommissions", fields: [downlineId], references: [id])
-  analysisId      String?
-  txSignature     String
-  commissionAmount Float    // Amount in USDC (e.g., 0.008)
-  totalFee        Float    // Total analysis fee (e.g., 0.08)
-  createdAt       DateTime @default(now())
+  id               String   @id @default(cuid())
+  referrerId       String
+  downlineId       String
+  analysisId       String?
+  txSignature      String
+  commissionAmount Float
+  totalFee         Float
+  createdAt        DateTime @default(now())
+  downline         User     @relation("DownlineCommissions", fields: [downlineId], references: [id])
+  referrer         User     @relation("ReferrerEarnings", fields: [referrerId], references: [id])
 }
 
 model Notification {
   id           String   @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
   type         String   @default("price_alert")
   title        String
   message      String
@@ -51,16 +48,17 @@ model Notification {
   condition    String?
   read         Boolean  @default(false)
   createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model Watchlist {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
   tokenSymbol String
   tokenName   String
   exchange    String
   createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, tokenSymbol, exchange])
 }
@@ -68,7 +66,6 @@ model Watchlist {
 model PriceAlert {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
   tokenSymbol String
   tokenName   String
   exchange    String
@@ -79,19 +76,20 @@ model PriceAlert {
   email       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model SignalHistory {
   id              String   @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id])
   tokenSymbol     String
   tokenName       String
   exchange        String
   priceAtAnalysis Float
-  analysis        String   @db.Text
+  analysis        String
   txSignature     String?
   createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
 }
 
 model TokenCache {
