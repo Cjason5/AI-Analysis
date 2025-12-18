@@ -33,10 +33,7 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-accent-blue rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-white" />
-            </div>
+          <Link href="/" className="flex items-center">
             <span className="text-xl font-bold text-text-primary">
               Trio Terminal
             </span>
