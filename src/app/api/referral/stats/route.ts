@@ -74,14 +74,14 @@ export async function GET(request: NextRequest) {
     );
 
     // Format downlines with their stats
-    const downlines = user.referrals.map((ref) => ({
+    const downlines = user.referrals.map((ref: { walletAddress: string; createdAt: Date; _count: { analyses: number } }) => ({
       walletAddress: ref.walletAddress,
       joinedAt: ref.createdAt,
       analysisCount: ref._count.analyses,
     }));
 
     // Format recent earnings
-    const recentEarnings = user.referralEarnings.map((earning) => ({
+    const recentEarnings = user.referralEarnings.map((earning: { id: string; downline: { walletAddress: string }; commissionAmount: number; totalFee: number; txSignature: string; createdAt: Date }) => ({
       id: earning.id,
       downlineWallet: earning.downline.walletAddress,
       commissionAmount: earning.commissionAmount,
