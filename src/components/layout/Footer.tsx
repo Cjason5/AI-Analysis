@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import { BarChart3 } from 'lucide-react';
 
 // X (Twitter) logo
 function XIcon({ className }: { className?: string }) {
@@ -26,13 +26,13 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
-            <Link href="/" className="flex items-center mb-4">
-              <Image
-                src="/logo-header.svg"
-                alt="Trio Terminal"
-                width={160}
-                height={32}
-              />
+            <Link href="/" className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-accent-blue rounded-lg flex items-center justify-center">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xl font-bold text-text-primary">
+                Trio Terminal
+              </span>
             </Link>
             <p className="text-text-secondary text-sm max-w-md">
               Cryptocurrency trading signal platform. Get insights,
