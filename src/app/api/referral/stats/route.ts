@@ -6,6 +6,11 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const walletAddress = searchParams.get('walletAddress');
 
+    // Get base URL from request headers or environment
+    const host = request.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
+
     if (!walletAddress) {
       return NextResponse.json({
         referralLink: '',
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({
-        referralLink: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?ref=${walletAddress}`,
+        referralLink: `${baseUrl}/?ref=${walletAddress}`,
         downlineCount: 0,
         totalEarnings: 0,
         recentEarnings: [],
@@ -91,7 +96,7 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({
-      referralLink: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?ref=${walletAddress}`,
+      referralLink: `${baseUrl}/?ref=${walletAddress}`,
       downlineCount: user.referrals.length,
       totalEarnings,
       recentEarnings,
