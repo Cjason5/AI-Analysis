@@ -5,6 +5,7 @@ import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { ReferralCapture } from '@/components/ReferralCapture';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -37,6 +38,7 @@ export default function RootLayout({
       >
         <WalletProvider>
           <NotificationProvider>
+            <ReferralCapture />
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />
