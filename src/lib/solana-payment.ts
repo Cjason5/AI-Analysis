@@ -531,7 +531,8 @@ const usedSignatures = new Set<string>();
 export async function verifyPaymentTransaction(
   connection: Connection,
   signature: string,
-  expectedPayer?: string
+  expectedPayer?: string,
+  referrerWallet?: string
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     // Check for replay attack
@@ -572,10 +573,16 @@ export async function verifyPaymentTransaction(
     let totalTransferred = 0;
     let foundWallet1Transfer = false;
     let foundWallet2Transfer = false;
+    let foundReferrerTransfer = false;
 
     // Get wallet token accounts
     const wallet1TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet1));
     const wallet2TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet2));
+
+    // Get referrer token account if referrer is provided
+    const referrerTokenAccount = referrerWallet
+      ? await getAssociatedTokenAddress(USDC_MINT, new PublicKey(referrerWallet))
+      : null;
 
     for (const postBalance of postBalances) {
       // Check if this is USDC (verify mint address)
@@ -591,7 +598,7 @@ export async function verifyPaymentTransaction(
       const postAmount = postBalance.uiTokenAmount?.amount ? parseInt(postBalance.uiTokenAmount.amount) : 0;
       const transferred = postAmount - preAmount;
 
-      // Check if transfer was to one of our payment wallets
+      // Check if transfer was to one of our payment wallets or referrer
       const accountKeys = tx.transaction.message.getAccountKeys();
       const accountKey = accountKeys.get(postBalance.accountIndex);
 
@@ -602,6 +609,10 @@ export async function verifyPaymentTransaction(
         } else if (accountKey.equals(wallet2TokenAccount)) {
           foundWallet2Transfer = true;
           totalTransferred += transferred;
+        } else if (referrerTokenAccount && accountKey.equals(referrerTokenAccount)) {
+          // Also count transfers to the referrer as part of the total payment
+          foundReferrerTransfer = true;
+          totalTransferred += transferred;
         }
       }
     }
@@ -609,6 +620,11 @@ export async function verifyPaymentTransaction(
     // Verify at least one payment wallet received funds
     if (!foundWallet1Transfer && !foundWallet2Transfer) {
       return { verified: false, error: 'No payment to authorized wallets found' };
+    }
+
+    // If referrer was provided, verify they received their commission
+    if (referrerWallet && !foundReferrerTransfer) {
+      console.warn('Referrer wallet provided but no transfer to referrer found in transaction');
     }
 
     // Verify total amount (allow small rounding differences, within 1%)
