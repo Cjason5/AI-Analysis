@@ -1,0 +1,142 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String            @id @default(cuid())
+  walletAddress    String            @unique
+  createdAt        DateTime          @default(now())
+  referredById     String?
+  notifications    Notification[]
+  alerts           PriceAlert[]
+  commissionsOwed  ReferralEarning[] @relation("DownlineCommissions")
+  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
+  analyses         SignalHistory[]
+  referredBy       User?             @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]            @relation("Referrals")
+  watchlist        Watchlist[]
+}
+
+model ReferralEarning {
+  id               String   @id @default(cuid())
+  referrerId       String
+  downlineId       String
+  analysisId       String?
+  txSignature      String
+  commissionAmount Float
+  totalFee         Float
+  createdAt        DateTime @default(now())
+  downline         User     @relation("DownlineCommissions", fields: [downlineId], references: [id])
+  referrer         User     @relation("ReferrerEarnings", fields: [referrerId], references: [id])
+}
+
+model Notification {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String   @default("price_alert")
+  title        String
+  message      String
+  tokenSymbol  String?
+  exchange     String?
+  targetPrice  Float?
+  currentPrice Float?
+  condition    String?
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Watchlist {
+  id          String   @id @default(cuid())
+  userId      String
+  tokenSymbol String
+  tokenName   String
+  exchange    String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, tokenSymbol, exchange])
+}
+
+model PriceAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  tokenSymbol String
+  tokenName   String
+  exchange    String
+  condition   String
+  targetPrice Float
+  isActive    Boolean  @default(true)
+  triggered   Boolean  @default(false)
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model SignalHistory {
+  id              String   @id @default(cuid())
+  userId          String
+  tokenSymbol     String
+  tokenName       String
+  exchange        String
+  priceAtAnalysis Float
+  analysis        String
+  txSignature     String?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model TokenCache {
+  id          String   @id @default(cuid())
+  exchange    String
+  tokenSymbol String
+  tokenName   String
+  price       Float
+  change24h   Float
+  volume24h   Float
+  marketCap   Float
+  logoUrl     String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([exchange, tokenSymbol])
+}
+
+model Setup {
+  id               String   @id @default(cuid())
+  signalHash       String   @unique
+  symbol           String
+  name             String?
+  exchange         String
+  market           String
+  action           String
+  direction        String
+  status           String
+  confluenceScore  Int
+  confidence       Float
+  entryMid         Float?
+  stopLoss         Float?
+  tp1              Float?
+  tp2              Float?
+  riskReward       Float?
+  currentPrice     Float?
+  distancePct      Float?
+  marketCap        Float?
+  modules          String
+  tradeHorizon     String?
+  htfTrend         String?
+  zoneGrade        String?
+  analysisTier     String?
+  positionSize     Float?
+  riskUsd          Float?
+  logoUrl          String?
+  scanSource       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  expiresAt        DateTime?
+}
