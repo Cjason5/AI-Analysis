@@ -98,13 +98,13 @@ export default function SetupsPage() {
           icon={<Crosshair className="w-4 h-4" />}
         />
         <StatCard
-          label="Buy Now"
+          label="Trade Now"
           value={activeCount}
           icon={<Zap className="w-4 h-4 text-accent-green" />}
           accent="green"
         />
         <StatCard
-          label="Limit Buy"
+          label="Limit Order"
           value={pendingCount}
           icon={<Clock className="w-4 h-4 text-accent-yellow" />}
         />
@@ -126,8 +126,8 @@ export default function SetupsPage() {
           label="Status"
           options={[
             { value: '', label: 'All' },
-            { value: 'ACTIVE', label: 'Buy Now' },
-            { value: 'PENDING', label: 'Limit Buy' },
+            { value: 'ACTIVE', label: 'Trade Now' },
+            { value: 'PENDING', label: 'Limit Order' },
           ]}
           selected={statusFilter}
           onChange={(v) => setStatusFilter(v as StatusFilter)}

@@ -79,7 +79,7 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
 
         <div className="flex flex-col items-end gap-1">
           <Badge variant={isActive ? 'success' : 'warning'}>
-            {isActive ? 'BUY NOW' : 'LIMIT BUY'}
+            {isActive ? 'TRADE NOW' : 'LIMIT ORDER'}
           </Badge>
           <div
             className={`flex items-center gap-1 text-sm font-semibold ${
