@@ -73,9 +73,6 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
               <Badge variant={setup.market === 'SPOT' ? 'info' : 'outline'}>
                 {setup.market}
               </Badge>
-              {setup.analysisTier && (
-                <Badge variant="secondary">{setup.analysisTier}</Badge>
-              )}
             </div>
           </div>
         </div>
