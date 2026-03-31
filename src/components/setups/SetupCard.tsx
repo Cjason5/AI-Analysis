@@ -7,7 +7,6 @@ import {
   TrendingDown,
   Target,
   ShieldAlert,
-  Layers,
   Clock,
 } from 'lucide-react';
 import { formatPrice, formatTimeAgo } from '@/lib/utils';
@@ -103,35 +102,6 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
             )}
             {setup.action}
           </div>
-        </div>
-      </div>
-
-      {/* Confluence + Confidence */}
-      <div className="flex items-center gap-4 mb-3">
-        <div className="flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-text-muted" />
-          <span className="text-sm text-text-secondary">Confluence:</span>
-          <div className="flex gap-0.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className={`w-2.5 h-2.5 rounded-full ${
-                  i <= setup.confluenceScore
-                    ? 'bg-accent-blue'
-                    : 'bg-bg-card-hover'
-                }`}
-              />
-            ))}
-          </div>
-          <span className="text-sm font-medium text-text-primary">
-            {setup.confluenceScore}/5
-          </span>
-        </div>
-        <div className="text-sm text-text-secondary">
-          Confidence:{' '}
-          <span className="font-medium text-text-primary">
-            {(setup.confidence * 100).toFixed(0)}%
-          </span>
         </div>
       </div>
 
