@@ -48,13 +48,7 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
   const isActive = setup.status === 'ACTIVE';
 
   return (
-    <Card
-      className={`p-4 transition-all ${
-        isActive
-          ? 'border-accent-green/50 bg-accent-green/5'
-          : 'border-border-color'
-      }`}
-    >
+    <Card className="p-4">
       {/* Header: Symbol + Status */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
