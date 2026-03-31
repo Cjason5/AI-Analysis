@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, isDatabaseAvailable } from '@/lib/prisma';
 
 const API_SECRET = process.env.SETUPS_API_SECRET || '';
 
@@ -14,6 +14,10 @@ function verifyAuth(request: NextRequest): boolean {
  * Query params: status, market, limit, offset
  */
 export async function GET(request: NextRequest) {
+  if (!isDatabaseAvailable()) {
+    return NextResponse.json({ setups: [], total: 0 }, { status: 503 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status'); // ACTIVE | PENDING
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
     ];
 
     const [setups, total] = await Promise.all([
-      prisma.setup.findMany({
+      prisma!.setup.findMany({
         where,
         orderBy: [
           { status: 'asc' }, // ACTIVE before PENDING
@@ -42,7 +46,7 @@ export async function GET(request: NextRequest) {
         take: limit,
         skip: offset,
       }),
-      prisma.setup.count({ where }),
+      prisma!.setup.count({ where }),
     ]);
 
     return NextResponse.json({
@@ -97,6 +101,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!isDatabaseAvailable()) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+  }
+
   try {
     const body = await request.json();
     const signals = body.signals;
@@ -146,12 +154,12 @@ export async function POST(request: NextRequest) {
       };
 
       // Upsert: update if same signal_hash exists, create if new
-      const existing = await prisma.setup.findUnique({
+      const existing = await prisma!.setup.findUnique({
         where: { signalHash: sig.signal_hash },
       });
 
       if (existing) {
-        await prisma.setup.update({
+        await prisma!.setup.update({
           where: { signalHash: sig.signal_hash },
           data: {
             ...data,
@@ -160,7 +168,7 @@ export async function POST(request: NextRequest) {
         });
         updated++;
       } else {
-        await prisma.setup.create({
+        await prisma!.setup.create({
           data: {
             signalHash: sig.signal_hash,
             ...data,
@@ -192,8 +200,12 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!isDatabaseAvailable()) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+  }
+
   try {
-    const result = await prisma.setup.deleteMany({
+    const result = await prisma!.setup.deleteMany({
       where: {
         expiresAt: { lt: new Date() },
       },
