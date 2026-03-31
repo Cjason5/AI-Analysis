@@ -10,7 +10,7 @@ import {
   Layers,
   Clock,
 } from 'lucide-react';
-import { formatPrice, formatMarketCap, formatTimeAgo } from '@/lib/utils';
+import { formatPrice, formatTimeAgo } from '@/lib/utils';
 
 export interface SetupSignal {
   id: string;
@@ -162,35 +162,8 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
         />
       </div>
 
-      {/* Modules + Meta */}
+      {/* Meta */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border-color">
-        {setup.modules.map((mod) => (
-          <Badge key={mod} variant="outline">
-            {mod.replace('_', ' ')}
-          </Badge>
-        ))}
-
-        {setup.htfTrend && (
-          <span className="text-xs text-text-muted">
-            Trend: {setup.htfTrend}
-          </span>
-        )}
-        {setup.zoneGrade && (
-          <span className="text-xs text-text-muted">
-            Grade: {setup.zoneGrade}
-          </span>
-        )}
-        {setup.distancePct != null && (
-          <span className="text-xs text-text-muted">
-            Distance: {(setup.distancePct * 100).toFixed(1)}%
-          </span>
-        )}
-        {setup.marketCap && (
-          <span className="text-xs text-text-muted">
-            MCap: {formatMarketCap(setup.marketCap)}
-          </span>
-        )}
-
         <span className="ml-auto flex items-center gap-1 text-xs text-text-muted">
           <Clock className="w-3 h-3" />
           {formatTimeAgo(setup.createdAt)}
