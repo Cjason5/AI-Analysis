@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Crosshair, Wallet, Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -27,7 +27,25 @@ function formatRemaining(expiresAt: string): string {
   return `${minutes}m`;
 }
 
+// Wrapper exists because SetupsAccessGateInner -> useReferral -> useSearchParams,
+// which Next.js requires to live inside a Suspense boundary during prerender.
 export function SetupsAccessGate({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-12">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-accent-blue animate-spin" />
+          </div>
+        </div>
+      }
+    >
+      <SetupsAccessGateInner>{children}</SetupsAccessGateInner>
+    </Suspense>
+  );
+}
+
+function SetupsAccessGateInner({ children }: { children: React.ReactNode }) {
   const { publicKey, connected, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { getReferrer } = useReferral();
