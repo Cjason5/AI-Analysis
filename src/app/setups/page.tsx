@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSetups } from '@/hooks/useSetups';
 import { SetupCard } from '@/components/setups/SetupCard';
+import { SetupsAccessGate } from '@/components/setups/SetupsAccessGate';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -20,6 +21,14 @@ type StatusFilter = '' | 'ACTIVE' | 'PENDING';
 type MarketFilter = '' | 'SPOT' | 'FUTURES';
 
 export default function SetupsPage() {
+  return (
+    <SetupsAccessGate>
+      <SetupsPageContent />
+    </SetupsAccessGate>
+  );
+}
+
+function SetupsPageContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   const [marketFilter, setMarketFilter] = useState<MarketFilter>('');
 

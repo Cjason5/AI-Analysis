@@ -40,7 +40,10 @@ export async function POST(request: NextRequest) {
     if (paymentSignature) {
       const connection = getConnection();
       console.log(`Verifying payment transaction: ${paymentSignature}`);
-      const verification = await verifyPaymentTransaction(connection, paymentSignature);
+      // Pass referrerWallet so the referrer's commission leg is counted in the total
+      const verification = await verifyPaymentTransaction(connection, paymentSignature, {
+        referrerWallet: referrerWallet || undefined,
+      });
 
       if (!verification.verified) {
         console.error('Payment verification failed:', verification.error);

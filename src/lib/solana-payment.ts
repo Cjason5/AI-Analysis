@@ -21,7 +21,10 @@ export const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyT
 // Payment configuration - reads from environment variables
 export const PAYMENT_CONFIG = {
   get totalAmount(): number {
-    return parseFloat(process.env.NEXT_PUBLIC_ANALYSIS_PRICE_USDC || process.env.ANALYSIS_PRICE_USDC || '0.30');
+    return parseFloat(process.env.NEXT_PUBLIC_ANALYSIS_PRICE_USDC || process.env.ANALYSIS_PRICE_USDC || '0.15');
+  },
+  get setupsAccessAmount(): number {
+    return parseFloat(process.env.NEXT_PUBLIC_SETUPS_ACCESS_PRICE_USDC || process.env.SETUPS_ACCESS_PRICE_USDC || '0.30');
   },
   wallet1Percentage: parseInt(process.env.PAYMENT_WALLET_1_PERCENTAGE || '50', 10),
   wallet2Percentage: parseInt(process.env.PAYMENT_WALLET_2_PERCENTAGE || '50', 10),
@@ -51,8 +54,10 @@ export function getDelegateAuthority(): PublicKey {
 }
 
 // Calculate split amounts (USDC has 6 decimals)
-export function calculateSplitAmounts(): { amount1: number; amount2: number; total: number } {
-  const totalInSmallestUnit = Math.round(PAYMENT_CONFIG.totalAmount * 1_000_000); // Convert to 6 decimals
+export function calculateSplitAmounts(
+  amountUsdc: number = PAYMENT_CONFIG.totalAmount
+): { amount1: number; amount2: number; total: number } {
+  const totalInSmallestUnit = Math.round(amountUsdc * 1_000_000); // Convert to 6 decimals
 
   const amount1 = Math.floor(totalInSmallestUnit * (PAYMENT_CONFIG.wallet1Percentage / 100));
   const amount2 = totalInSmallestUnit - amount1; // Remaining goes to wallet2 to avoid rounding issues
@@ -61,13 +66,15 @@ export function calculateSplitAmounts(): { amount1: number; amount2: number; tot
 }
 
 // Calculate split amounts with referral commission
-export function calculateSplitAmountsWithReferral(): {
+export function calculateSplitAmountsWithReferral(
+  amountUsdc: number = PAYMENT_CONFIG.totalAmount
+): {
   referralCommission: number;
   amount1: number;
   amount2: number;
   total: number;
 } {
-  const totalInSmallestUnit = Math.round(PAYMENT_CONFIG.totalAmount * 1_000_000); // Convert to 6 decimals
+  const totalInSmallestUnit = Math.round(amountUsdc * 1_000_000); // Convert to 6 decimals
 
   // Calculate referral commission (10% of total)
   const referralCommission = Math.floor(totalInSmallestUnit * (PAYMENT_CONFIG.referralCommissionPercentage / 100));
@@ -155,10 +162,11 @@ export async function createApproveAllowanceTransaction(
 // Create split payment transaction for USDC (manual signing)
 export async function createSplitPaymentTransaction(
   connection: Connection,
-  payerPublicKey: PublicKey
+  payerPublicKey: PublicKey,
+  amountUsdc: number = PAYMENT_CONFIG.totalAmount
 ): Promise<Transaction> {
   const { wallet1, wallet2 } = getPaymentWallets();
-  const { amount1, amount2 } = calculateSplitAmounts();
+  const { amount1, amount2 } = calculateSplitAmounts(amountUsdc);
 
   const wallet1PublicKey = new PublicKey(wallet1);
   const wallet2PublicKey = new PublicKey(wallet2);
@@ -263,10 +271,11 @@ export async function createSplitPaymentTransaction(
 export async function createSplitPaymentTransactionWithReferral(
   connection: Connection,
   payerPublicKey: PublicKey,
-  referrerWalletAddress: string
+  referrerWalletAddress: string,
+  amountUsdc: number = PAYMENT_CONFIG.totalAmount
 ): Promise<Transaction> {
   const { wallet1, wallet2 } = getPaymentWallets();
-  const { referralCommission, amount1, amount2 } = calculateSplitAmountsWithReferral();
+  const { referralCommission, amount1, amount2 } = calculateSplitAmountsWithReferral(amountUsdc);
 
   const wallet1PublicKey = new PublicKey(wallet1);
   const wallet2PublicKey = new PublicKey(wallet2);
@@ -531,7 +540,10 @@ const usedSignatures = new Set<string>();
 export async function verifyPaymentTransaction(
   connection: Connection,
   signature: string,
-  expectedPayer?: string
+  options: {
+    expectedAmountUsdc?: number;
+    referrerWallet?: string;
+  } = {}
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     // Check for replay attack
@@ -561,8 +573,8 @@ export async function verifyPaymentTransaction(
 
     // Get expected payment wallets and amounts
     const { wallet1, wallet2 } = getPaymentWallets();
-    const { total } = calculateSplitAmounts();
-    const expectedTotal = total; // in smallest unit (6 decimals)
+    const expectedAmountUsdc = options.expectedAmountUsdc ?? PAYMENT_CONFIG.totalAmount;
+    const expectedTotal = Math.round(expectedAmountUsdc * 1_000_000); // smallest unit (6 decimals)
 
     // Verify token transfers using pre/post token balances
     const preBalances = tx.meta?.preTokenBalances || [];
@@ -573,9 +585,12 @@ export async function verifyPaymentTransaction(
     let foundWallet1Transfer = false;
     let foundWallet2Transfer = false;
 
-    // Get wallet token accounts
+    // Get wallet token accounts (include referrer's account so referred payments verify correctly)
     const wallet1TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet1));
     const wallet2TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet2));
+    const referrerTokenAccount = options.referrerWallet
+      ? await getAssociatedTokenAddress(USDC_MINT, new PublicKey(options.referrerWallet))
+      : null;
 
     for (const postBalance of postBalances) {
       // Check if this is USDC (verify mint address)
@@ -601,6 +616,9 @@ export async function verifyPaymentTransaction(
           totalTransferred += transferred;
         } else if (accountKey.equals(wallet2TokenAccount)) {
           foundWallet2Transfer = true;
+          totalTransferred += transferred;
+        } else if (referrerTokenAccount && accountKey.equals(referrerTokenAccount)) {
+          // Count the referral commission leg toward the total
           totalTransferred += transferred;
         }
       }

@@ -110,7 +110,7 @@ export default function FAQPage() {
             <div className="space-y-2">
               <p>You need two things in your Solana wallet:</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li><strong>USDC (SPL token):</strong> For paying for analyses ($0.08 per analysis)</li>
+                <li><strong>USDC (SPL token):</strong> For paying fees ($0.15 per analysis, $0.30 per day to view the Setups page)</li>
                 <li><strong>SOL:</strong> A small amount for Solana transaction fees (less than $0.01 per transaction)</li>
               </ul>
               <p className="mt-2">Make sure you have USDC on Solana (not Ethereum or other chains).</p>
@@ -128,7 +128,7 @@ export default function FAQPage() {
             <div className="space-y-2">
               <p>Transactions can fail for several reasons:</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li><strong>Insufficient USDC:</strong> Make sure you have at least $0.30 USDC</li>
+                <li><strong>Insufficient USDC:</strong> Make sure you have enough USDC ($0.15 for an analysis, $0.30 for daily Setups access)</li>
                 <li><strong>Insufficient SOL:</strong> You need a small amount of SOL for transaction fees</li>
                 <li><strong>Network congestion:</strong> Try again in a few moments</li>
                 <li><strong>Wallet rejection:</strong> Make sure to approve the transaction in your wallet</li>

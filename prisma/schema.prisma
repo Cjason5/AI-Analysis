@@ -8,18 +8,19 @@ datasource db {
 }
 
 model User {
-  id               String            @id @default(cuid())
-  walletAddress    String            @unique
-  createdAt        DateTime          @default(now())
-  referredById     String?
-  notifications    Notification[]
-  alerts           PriceAlert[]
-  commissionsOwed  ReferralEarning[] @relation("DownlineCommissions")
-  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
-  analyses         SignalHistory[]
-  referredBy       User?             @relation("Referrals", fields: [referredById], references: [id])
-  referrals        User[]            @relation("Referrals")
-  watchlist        Watchlist[]
+  id                     String            @id @default(cuid())
+  walletAddress          String            @unique
+  createdAt              DateTime          @default(now())
+  referredById           String?
+  setupsAccessExpiresAt  DateTime?
+  notifications          Notification[]
+  alerts                 PriceAlert[]
+  commissionsOwed        ReferralEarning[] @relation("DownlineCommissions")
+  referralEarnings       ReferralEarning[] @relation("ReferrerEarnings")
+  analyses               SignalHistory[]
+  referredBy             User?             @relation("Referrals", fields: [referredById], references: [id])
+  referrals              User[]            @relation("Referrals")
+  watchlist              Watchlist[]
 }
 
 model ReferralEarning {
