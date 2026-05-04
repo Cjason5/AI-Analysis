@@ -575,64 +575,55 @@ export async function verifyPaymentTransaction(
     const { wallet1, wallet2 } = getPaymentWallets();
     const expectedAmountUsdc = options.expectedAmountUsdc ?? PAYMENT_CONFIG.totalAmount;
     const expectedTotal = Math.round(expectedAmountUsdc * 1_000_000); // smallest unit (6 decimals)
+    const usdcMintBase58 = USDC_MINT.toBase58();
 
-    // Verify token transfers using pre/post token balances
+    // Verify token transfers using pre/post token balances. Match recipients
+    // by the token account's `owner` field (provided by the RPC) rather than
+    // deriving ATA addresses and comparing message account keys — more robust
+    // and works for both legacy and v0 messages with address-table lookups.
     const preBalances = tx.meta?.preTokenBalances || [];
     const postBalances = tx.meta?.postTokenBalances || [];
 
-    // Find USDC transfers to our payment wallets
-    let totalTransferred = 0;
-    let foundWallet1Transfer = false;
-    let foundWallet2Transfer = false;
-
-    // Get wallet token accounts (include referrer's account so referred payments verify correctly)
-    const wallet1TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet1));
-    const wallet2TokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(wallet2));
-    const referrerTokenAccount = options.referrerWallet
-      ? await getAssociatedTokenAddress(USDC_MINT, new PublicKey(options.referrerWallet))
-      : null;
+    let totalTransferred = BigInt(0);
+    let foundPaymentTransfer = false;
+    const ZERO = BigInt(0);
 
     for (const postBalance of postBalances) {
-      // Check if this is USDC (verify mint address)
-      if (postBalance.mint !== USDC_MINT.toBase58()) {
-        continue;
-      }
+      if (postBalance.mint !== usdcMintBase58) continue;
+      if (!postBalance.owner) continue;
+
+      const isPaymentWallet =
+        postBalance.owner === wallet1 || postBalance.owner === wallet2;
+      const isReferrer =
+        !!options.referrerWallet && postBalance.owner === options.referrerWallet;
+
+      if (!isPaymentWallet && !isReferrer) continue;
 
       const preBalance = preBalances.find(
         (pre) => pre.accountIndex === postBalance.accountIndex
       );
+      const preAmount = BigInt(preBalance?.uiTokenAmount?.amount ?? '0');
+      const postAmount = BigInt(postBalance.uiTokenAmount?.amount ?? '0');
+      const delta = postAmount - preAmount;
 
-      const preAmount = preBalance?.uiTokenAmount?.amount ? parseInt(preBalance.uiTokenAmount.amount) : 0;
-      const postAmount = postBalance.uiTokenAmount?.amount ? parseInt(postBalance.uiTokenAmount.amount) : 0;
-      const transferred = postAmount - preAmount;
+      // Only count positive deltas — the recipient ATA balance increased.
+      if (delta <= ZERO) continue;
 
-      // Check if transfer was to one of our payment wallets
-      const accountKeys = tx.transaction.message.getAccountKeys();
-      const accountKey = accountKeys.get(postBalance.accountIndex);
-
-      if (accountKey) {
-        if (accountKey.equals(wallet1TokenAccount)) {
-          foundWallet1Transfer = true;
-          totalTransferred += transferred;
-        } else if (accountKey.equals(wallet2TokenAccount)) {
-          foundWallet2Transfer = true;
-          totalTransferred += transferred;
-        } else if (referrerTokenAccount && accountKey.equals(referrerTokenAccount)) {
-          // Count the referral commission leg toward the total
-          totalTransferred += transferred;
-        }
-      }
+      if (isPaymentWallet) foundPaymentTransfer = true;
+      totalTransferred += delta;
     }
 
-    // Verify at least one payment wallet received funds
-    if (!foundWallet1Transfer && !foundWallet2Transfer) {
+    if (!foundPaymentTransfer) {
       return { verified: false, error: 'No payment to authorized wallets found' };
     }
 
     // Verify total amount (allow small rounding differences, within 1%)
-    const minExpected = Math.floor(expectedTotal * 0.99);
+    const minExpected = BigInt(Math.floor(expectedTotal * 0.99));
     if (totalTransferred < minExpected) {
-      return { verified: false, error: `Insufficient payment amount. Expected ${expectedTotal}, got ${totalTransferred}` };
+      return {
+        verified: false,
+        error: `Insufficient payment amount. Expected ${expectedTotal}, got ${totalTransferred}`,
+      };
     }
 
     // Mark signature as used to prevent replay
