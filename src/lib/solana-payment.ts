@@ -577,27 +577,61 @@ export async function verifyPaymentTransaction(
     const expectedTotal = Math.round(expectedAmountUsdc * 1_000_000); // smallest unit (6 decimals)
     const usdcMintBase58 = USDC_MINT.toBase58();
 
-    // Verify token transfers using pre/post token balances. Match recipients
-    // by the token account's `owner` field (provided by the RPC) rather than
-    // deriving ATA addresses and comparing message account keys — more robust
-    // and works for both legacy and v0 messages with address-table lookups.
+    // Pre-derive ATA addresses for fallback matching when the RPC omits the
+    // `owner` field on token balances (some RPCs do for certain tx versions).
+    const wallet1Pk = new PublicKey(wallet1);
+    const wallet2Pk = new PublicKey(wallet2);
+    const wallet1Ata = (await getAssociatedTokenAddress(USDC_MINT, wallet1Pk)).toBase58();
+    const wallet2Ata = (await getAssociatedTokenAddress(USDC_MINT, wallet2Pk)).toBase58();
+    const referrerAta = options.referrerWallet
+      ? (await getAssociatedTokenAddress(USDC_MINT, new PublicKey(options.referrerWallet))).toBase58()
+      : null;
+
     const preBalances = tx.meta?.preTokenBalances || [];
     const postBalances = tx.meta?.postTokenBalances || [];
+
+    // Resolve account keys (with lookup-table accounts if any) so we can
+    // identify each token balance's account by address as a fallback.
+    let staticAccountKeys: PublicKey[] = [];
+    let loadedWritable: PublicKey[] = [];
+    let loadedReadonly: PublicKey[] = [];
+    try {
+      const msg = tx.transaction.message;
+      staticAccountKeys = msg.staticAccountKeys ?? [];
+      loadedWritable = tx.meta?.loadedAddresses?.writable ?? [];
+      loadedReadonly = tx.meta?.loadedAddresses?.readonly ?? [];
+    } catch (e) {
+      console.error('[verifyPayment] Could not read account keys:', e);
+    }
+
+    const accountAddressAt = (idx: number): string | null => {
+      if (idx < staticAccountKeys.length) return staticAccountKeys[idx].toBase58();
+      const lookupIdx = idx - staticAccountKeys.length;
+      if (lookupIdx < loadedWritable.length) return loadedWritable[lookupIdx].toBase58();
+      const ro = lookupIdx - loadedWritable.length;
+      if (ro >= 0 && ro < loadedReadonly.length) return loadedReadonly[ro].toBase58();
+      return null;
+    };
 
     let totalTransferred = BigInt(0);
     let foundPaymentTransfer = false;
     const ZERO = BigInt(0);
 
+    type Match = 'wallet1' | 'wallet2' | 'referrer' | null;
+    const debug: Array<{ idx: number; owner?: string; addr: string | null; mint: string; delta: string; match: Match }> = [];
+
     for (const postBalance of postBalances) {
       if (postBalance.mint !== usdcMintBase58) continue;
-      if (!postBalance.owner) continue;
 
-      const isPaymentWallet =
-        postBalance.owner === wallet1 || postBalance.owner === wallet2;
-      const isReferrer =
-        !!options.referrerWallet && postBalance.owner === options.referrerWallet;
+      const accountAddr = accountAddressAt(postBalance.accountIndex);
 
-      if (!isPaymentWallet && !isReferrer) continue;
+      let match: Match = null;
+      if (postBalance.owner === wallet1) match = 'wallet1';
+      else if (postBalance.owner === wallet2) match = 'wallet2';
+      else if (options.referrerWallet && postBalance.owner === options.referrerWallet) match = 'referrer';
+      else if (accountAddr === wallet1Ata) match = 'wallet1';
+      else if (accountAddr === wallet2Ata) match = 'wallet2';
+      else if (referrerAta && accountAddr === referrerAta) match = 'referrer';
 
       const preBalance = preBalances.find(
         (pre) => pre.accountIndex === postBalance.accountIndex
@@ -606,11 +640,35 @@ export async function verifyPaymentTransaction(
       const postAmount = BigInt(postBalance.uiTokenAmount?.amount ?? '0');
       const delta = postAmount - preAmount;
 
-      // Only count positive deltas — the recipient ATA balance increased.
+      debug.push({
+        idx: postBalance.accountIndex,
+        owner: postBalance.owner,
+        addr: accountAddr,
+        mint: postBalance.mint,
+        delta: delta.toString(),
+        match,
+      });
+
+      if (!match) continue;
       if (delta <= ZERO) continue;
 
-      if (isPaymentWallet) foundPaymentTransfer = true;
+      if (match === 'wallet1' || match === 'wallet2') foundPaymentTransfer = true;
       totalTransferred += delta;
+    }
+
+    if (!foundPaymentTransfer || totalTransferred < BigInt(Math.floor(expectedTotal * 0.99))) {
+      console.error('[verifyPayment] Verification failed', {
+        signature,
+        expectedTotal,
+        totalTransferred: totalTransferred.toString(),
+        wallet1,
+        wallet2,
+        wallet1Ata,
+        wallet2Ata,
+        referrerWallet: options.referrerWallet,
+        referrerAta,
+        usdcBalances: debug,
+      });
     }
 
     if (!foundPaymentTransfer) {
