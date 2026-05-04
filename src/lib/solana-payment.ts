@@ -544,7 +544,7 @@ export async function verifyPaymentTransaction(
     expectedAmountUsdc?: number;
     referrerWallet?: string;
   } = {}
-): Promise<{ verified: boolean; error?: string }> {
+): Promise<{ verified: boolean; error?: string; diagnostic?: unknown }> {
   try {
     // Check for replay attack
     if (usedSignatures.has(signature)) {
@@ -656,23 +656,25 @@ export async function verifyPaymentTransaction(
       totalTransferred += delta;
     }
 
+    const diagnostic = {
+      signature,
+      expectedTotal,
+      totalTransferred: totalTransferred.toString(),
+      wallet1,
+      wallet2,
+      wallet1Ata,
+      wallet2Ata,
+      referrerWallet: options.referrerWallet ?? null,
+      referrerAta,
+      usdcBalances: debug,
+    };
+
     if (!foundPaymentTransfer || totalTransferred < BigInt(Math.floor(expectedTotal * 0.99))) {
-      console.error('[verifyPayment] Verification failed', {
-        signature,
-        expectedTotal,
-        totalTransferred: totalTransferred.toString(),
-        wallet1,
-        wallet2,
-        wallet1Ata,
-        wallet2Ata,
-        referrerWallet: options.referrerWallet,
-        referrerAta,
-        usdcBalances: debug,
-      });
+      console.error('[verifyPayment] Verification failed', diagnostic);
     }
 
     if (!foundPaymentTransfer) {
-      return { verified: false, error: 'No payment to authorized wallets found' };
+      return { verified: false, error: 'No payment to authorized wallets found', diagnostic };
     }
 
     // Verify total amount (allow small rounding differences, within 1%)
@@ -681,6 +683,7 @@ export async function verifyPaymentTransaction(
       return {
         verified: false,
         error: `Insufficient payment amount. Expected ${expectedTotal}, got ${totalTransferred}`,
+        diagnostic,
       };
     }
 

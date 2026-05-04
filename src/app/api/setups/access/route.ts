@@ -75,7 +75,10 @@ export async function POST(request: NextRequest) {
 
     if (!verification.verified) {
       return NextResponse.json(
-        { error: `Payment verification failed: ${verification.error}` },
+        {
+          error: `Payment verification failed: ${verification.error}`,
+          diagnostic: verification.diagnostic,
+        },
         { status: 402 }
       );
     }
