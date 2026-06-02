@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, isDatabaseAvailable } from '@/lib/prisma';
+import { getTopRankedSymbols } from '@/lib/coinmarketcap';
 
 const API_SECRET = process.env.SETUPS_API_SECRET || '';
+
+// Only display signals for the top-N tradeable tokens by market cap. The droplet
+// forwarder already restricts to its own (stablecoin-free) top-N, but we re-check
+// against CoinMarketCap's authoritative ranking on BOTH paths: POST rejects (and
+// purges) below-rank tokens at ingest, and GET filters them out at serve time as
+// the correctness backstop (catches rows that stopped being forwarded, pre-guard
+// rows, and CMC fail-open batches). Stablecoins are excluded so the guard mirrors
+// the forwarder's universe (see getTopRankedSymbols).
+const TOP_N_BY_MARKET_CAP = 35;
 
 function verifyAuth(request: NextRequest): boolean {
   if (!API_SECRET) return true; // No secret configured = open (dev mode)
@@ -34,6 +44,26 @@ export async function GET(request: NextRequest) {
       { expiresAt: null },
       { expiresAt: { gt: new Date() } },
     ];
+
+    // Display only top-N-by-market-cap tokens (authoritative CMC rank). This is
+    // the correctness backstop: it hides any stored below-rank row regardless of
+    // how it got there (a token that simply stopped being forwarded, a deploy
+    // before this guard existed, or a CMC fail-open ingest batch). Fail OPEN —
+    // no rank filter when the ranking is unavailable — so a CMC outage never
+    // blanks the feed. Match both CMC casing and uppercased form for robustness.
+    const topSymbols = await getTopRankedSymbols(TOP_N_BY_MARKET_CAP);
+    if (topSymbols) {
+      // Prisma `in` is case-sensitive, so include every realistic casing of each
+      // allowed symbol (CMC original e.g. "XAUt", upper, lower) to stay symmetric
+      // with the case-insensitive ingest check.
+      where.symbol = {
+        in: [
+          ...new Set(
+            [...topSymbols].flatMap((s) => [s, s.toUpperCase(), s.toLowerCase()]),
+          ),
+        ],
+      };
+    }
 
     const [setups, total] = await Promise.all([
       prisma!.setup.findMany({
@@ -117,13 +147,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'signals array required' }, { status: 400 });
     }
 
+    // Authoritative top-N-by-market-cap guard (CoinMarketCap rank, stablecoins
+    // excluded). Null when the ranking is unavailable (no API key / CMC outage) —
+    // in that case we fail OPEN and skip the guard rather than hiding signals.
+    // Compare uppercased (CMC uses mixed case for some symbols, e.g. XAUt).
+    const topSymbols = await getTopRankedSymbols(TOP_N_BY_MARKET_CAP);
+    const allowUpper = topSymbols
+      ? new Set([...topSymbols].map((s) => s.toUpperCase()))
+      : null;
+
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let filteredByRank = 0;
+    const droppedSymbols = new Set<string>(); // below top-N → purge from display
 
     for (const sig of signals) {
       if (!sig.signal_hash || !sig.symbol) {
         skipped++;
+        continue;
+      }
+
+      // Reject signals for tokens outside the top-N tradeable by market cap.
+      if (allowUpper && !allowUpper.has(String(sig.symbol).toUpperCase())) {
+        filteredByRank++;
+        droppedSymbols.add(sig.symbol); // original case → matches stored rows
         continue;
       }
 
@@ -182,11 +230,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Purge any previously-stored rows for tokens that have now dropped below the
+    // top-N threshold, so they disappear from the setups page immediately rather
+    // than lingering until expiry.
+    let purged = 0;
+    if (droppedSymbols.size > 0) {
+      const res = await prisma!.setup.deleteMany({
+        where: { symbol: { in: [...droppedSymbols] } },
+      });
+      purged = res.count;
+    }
+
     return NextResponse.json({
       success: true,
       created,
       updated,
       skipped,
+      filteredByRank,
+      purged,
       total: signals.length,
     });
   } catch (error) {

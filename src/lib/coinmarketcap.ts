@@ -789,6 +789,103 @@ export async function fetchTopTokens(
   }
 }
 
+// ── Setups feed: top-N-by-market-cap display guard ───────────────────────────
+// Stablecoins are never tradeable signals, and the droplet signal engine
+// explicitly skips them (engine/config.py STABLECOINS) — so the forwarder's
+// "top-N" is a stablecoin-FREE ranking. CoinMarketCap's raw market-cap ranking
+// DOES include stablecoins (USDT ~#3, USDC ~#6, …), so we must exclude the same
+// set before taking our top-N. Otherwise stablecoins would occupy slots and push
+// legitimate tradeable tokens below the threshold, wrongly hiding real signals.
+// This mirrors the engine's STABLECOINS set (compared case-insensitively).
+const STABLECOIN_SYMBOLS = new Set<string>([
+  'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USDP', 'USDD',
+  'GUSD', 'FRAX', 'LUSD', 'SUSD', 'CUSD', 'EURC', 'PYUSD', 'USD0',
+  'USDE', 'USDJ', 'USTC', 'ALUSD', 'MIM', 'CRVUSD', 'GHO', 'DOLA',
+  'USDB', 'UST', 'USDX', 'ZUSD', 'HUSD', 'USDH', 'HAY',
+]);
+
+// Cache for the top-N tradeable symbol set. Ranks at the very top of the market
+// move slowly, so a longer TTL keeps CMC credit usage minimal (~1 call/window).
+let topRankedCache: { limit: number; symbols: Set<string>; timestamp: number } | null = null;
+const TOP_RANKED_TTL = 600000; // 10 minutes
+const TOP_RANKED_TIMEOUT = 7000; // abort a hanging CMC fetch (it sits in the ingest/serve path)
+
+/**
+ * Returns the set of symbols (in CoinMarketCap's original casing, e.g. "XAUt")
+ * for the top-`limit` TRADEABLE cryptocurrencies by market cap — CMC's
+ * market-cap ranking with stablecoins excluded, mirroring the signal engine's
+ * universe so the guard is a true superset of what the forwarder sends. Cached
+ * in-memory. Returns null when the ranking is unavailable (no API key / CMC
+ * failure / timeout / implausibly short response) so callers can fail OPEN —
+ * never hiding every signal during a CMC outage. A previously-cached set is
+ * reused on transient error.
+ */
+export async function getTopRankedSymbols(limit: number = 35): Promise<Set<string> | null> {
+  if (
+    topRankedCache &&
+    topRankedCache.limit === limit &&
+    Date.now() - topRankedCache.timestamp < TOP_RANKED_TTL
+  ) {
+    return topRankedCache.symbols;
+  }
+
+  if (!CMC_API_KEY) {
+    console.warn('[setups] COINMARKETCAP_API_KEY not set — top-N market-cap guard disabled (failing open)');
+    return null;
+  }
+
+  // Over-fetch so excluded stablecoins don't shrink the result below `limit`.
+  const fetchLimit = Math.max(60, limit + 25);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TOP_RANKED_TIMEOUT);
+  try {
+    const response = await fetch(
+      `${CMC_BASE_URL}/cryptocurrency/listings/latest?limit=${fetchLimit}&start=1&sort=market_cap&convert=USD`,
+      {
+        headers: {
+          'X-CMC_PRO_API_KEY': CMC_API_KEY,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`[setups] CMC listings error ${response.status} — top-N guard failing open`);
+      return topRankedCache?.symbols ?? null; // last-known-good if available
+    }
+
+    const data: CMCListingsResponse = await response.json();
+    const rows = data.data || [];
+    // Guard against a partial/short response (would over-filter / over-purge).
+    if (rows.length < limit) {
+      console.error(`[setups] CMC returned only ${rows.length} rows (<${limit}) — failing open`);
+      return topRankedCache?.symbols ?? null;
+    }
+
+    const tradeable = rows
+      .filter((c) => !STABLECOIN_SYMBOLS.has(c.symbol.toUpperCase()))
+      .slice(0, limit)
+      .map((c) => c.symbol); // preserve CMC casing for DB matching
+
+    if (tradeable.length < limit) {
+      console.error(`[setups] only ${tradeable.length} tradeable symbols after exclusions (<${limit}) — failing open`);
+      return topRankedCache?.symbols ?? null;
+    }
+
+    const symbols = new Set<string>(tradeable);
+    topRankedCache = { limit, symbols, timestamp: Date.now() };
+    console.log(`[setups] top-${limit} tradeable market-cap guard refreshed: ${symbols.size} symbols`);
+    return symbols;
+  } catch (error) {
+    console.error('[setups] Failed to fetch top-N ranking — failing open:', (error as Error).message);
+    return topRankedCache?.symbols ?? null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Fetch tokens for a specific exchange (filtered by what's listed on that exchange)
 export async function fetchExchangeTokens(
   exchange: ExchangeId | 'all',
