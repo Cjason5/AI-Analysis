@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSetups } from '@/hooks/useSetups';
 import { SetupCard } from '@/components/setups/SetupCard';
 import { SetupsAccessGate } from '@/components/setups/SetupsAccessGate';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   Crosshair,
@@ -32,7 +31,16 @@ function SetupsPageContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   const [marketFilter, setMarketFilter] = useState<MarketFilter>('');
 
-  const { setups, total, isLoading, error, refetch } = useSetups({
+  const {
+    setups,
+    total,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
+    loadMore,
+    refetch,
+  } = useSetups({
     status: statusFilter || undefined,
     market: marketFilter || undefined,
     refreshInterval: 30_000, // 30s refresh for live feel
@@ -44,6 +52,30 @@ function SetupsPageContent() {
     await refetch();
     setIsRefreshing(false);
   };
+
+  // Infinite scroll: observe a sentinel near the end of the list and pull the
+  // next page as it approaches the viewport. A ref holds the latest loadMore so
+  // the observer stays stable across loadMore identity changes.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef(loadMore);
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !isLoadingMore) {
+          loadMoreRef.current();
+        }
+      },
+      { rootMargin: '400px' }, // prefetch before the user hits the very bottom
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, setups.length]);
 
   const activeCount = setups.filter((s) => s.status === 'ACTIVE').length;
   const pendingCount = setups.filter((s) => s.status === 'PENDING').length;
@@ -168,11 +200,27 @@ function SetupsPageContent() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {setups.map((setup) => (
-            <SetupCard key={setup.id} setup={setup} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {setups.map((setup) => (
+              <SetupCard key={setup.id} setup={setup} />
+            ))}
+          </div>
+
+          {/* Infinite-scroll sentinel + load state */}
+          <div ref={sentinelRef} aria-hidden className="h-px" />
+          {isLoadingMore && (
+            <div className="flex items-center justify-center py-6 text-text-muted text-sm">
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              Loading more…
+            </div>
+          )}
+          {!hasMore && (
+            <p className="text-center text-text-muted text-sm py-6">
+              You&rsquo;ve reached the end — {total} setups total.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

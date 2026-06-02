@@ -39,9 +39,12 @@ export async function GET(request: NextRequest) {
       prisma!.setup.findMany({
         where,
         orderBy: [
-          { status: 'asc' }, // ACTIVE before PENDING
-          { confluenceScore: 'desc' },
-          { confidence: 'desc' },
+          // Pure freshness — no preference by status or confluence. The newest
+          // signals sit at the top regardless of type. The forwarder re-POSTs
+          // every cycle, so updatedAt = "last confirmed" time; signals the engine
+          // stops producing go stale, sink, and expire out.
+          { updatedAt: 'desc' },
+          { createdAt: 'desc' }, // stable tie-break for identical updatedAt
         ],
         take: limit,
         skip: offset,
@@ -79,6 +82,7 @@ export async function GET(request: NextRequest) {
         logoUrl: s.logoUrl,
         scanSource: s.scanSource,
         createdAt: s.createdAt.toISOString(),
+        updatedAt: s.updatedAt.toISOString(),
         expiresAt: s.expiresAt?.toISOString() || null,
       })),
       total,

@@ -40,6 +40,7 @@ export interface SetupSignal {
   logoUrl: string | null;
   scanSource: string | null;
   createdAt: string;
+  updatedAt: string;
   expiresAt: string | null;
 }
 
@@ -127,7 +128,7 @@ export function SetupCard({ setup }: { setup: SetupSignal }) {
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border-color">
         <span className="ml-auto flex items-center gap-1 text-xs text-text-muted">
           <Clock className="w-3 h-3" />
-          {formatTimeAgo(setup.createdAt)}
+          {formatTimeAgo(setup.updatedAt)}
         </span>
       </div>
     </Card>
